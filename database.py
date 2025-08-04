@@ -16,6 +16,16 @@ def init_db():
     )
     ''')
     
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS multilingual_messages (
+        id INTEGER PRIMARY KEY,
+        marathi_content TEXT,
+        english_content TEXT,
+        sender TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
     # Create feedback table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS feedback (
@@ -24,8 +34,21 @@ def init_db():
         citizen_contact TEXT NOT NULL,
         rating INTEGER NOT NULL,
         comment TEXT,
+        center_number TEXT,
+        document_url TEXT,
+        document_data TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (ref_id) REFERENCES reference_ids (ref_id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS simple_messages (
+        id INTEGER PRIMARY KEY,
+        sender_name TEXT,
+        phone_number TEXT NOT NULL,
+        message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
     
@@ -36,10 +59,137 @@ def init_db():
         state TEXT NOT NULL,
         current_ref_id TEXT,
         current_rating INTEGER,
+        current_comment TEXT,
+        current_center_number TEXT,
+        current_document_url TEXT,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
     
+    conn.commit()
+    conn.close()
+    
+def set_current_comment(citizen_contact, comment):
+    """Set the current comment being processed"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'UPDATE user_states SET current_comment = ? WHERE citizen_contact = ?',
+        (comment, citizen_contact)
+    )
+    conn.commit()
+    conn.close()
+    
+def save_simple_message(sender_name, phone_number, message):
+    """Save a simple message to the database"""
+    with sqlite3.connect('feedback.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO simple_messages (sender_name, phone_number, message) VALUES (?, ?, ?)',
+            (sender_name, phone_number, message)
+        )
+        conn.commit()
+        
+def save_multilingual_message(marathi_content, english_content, sender):
+    """Save a multilingual message to the database"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'INSERT INTO multilingual_messages (marathi_content, english_content, sender) VALUES (?, ?, ?)',
+        (marathi_content, english_content, sender)
+    )
+    conn.commit()
+    conn.close()
+
+def get_multilingual_messages():
+    """Get all multilingual messages"""
+    conn = sqlite3.connect('feedback.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM multilingual_messages ORDER BY created_at DESC')
+    result = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return result
+
+def get_multilingual_message_by_english(english_content):
+    """Get a multilingual message by its English content"""
+    conn = sqlite3.connect('feedback.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT * FROM multilingual_messages WHERE english_content = ? LIMIT 1',
+        (english_content,)
+    )
+    result = cursor.fetchone()
+    conn.close()
+    return dict(result) if result else None
+
+def get_current_comment(citizen_contact):
+    """Get the current comment being processed"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT current_comment FROM user_states WHERE citizen_contact = ?',
+        (citizen_contact,)
+    )
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else None
+
+def set_current_center_number(citizen_contact, center_number):
+    """Set the current center number being processed"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'UPDATE user_states SET current_center_number = ? WHERE citizen_contact = ?',
+        (center_number, citizen_contact)
+    )
+    conn.commit()
+    conn.close()
+
+def get_current_center_number(citizen_contact):
+    """Get the current center number being processed"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT current_center_number FROM user_states WHERE citizen_contact = ?',
+        (citizen_contact,)
+    )
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else None
+
+def set_current_document_url(citizen_contact, document_url):
+    """Set the current document URL being processed"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'UPDATE user_states SET current_document_url = ? WHERE citizen_contact = ?',
+        (document_url, citizen_contact)
+    )
+    conn.commit()
+    conn.close()
+
+def get_current_document_url(citizen_contact):
+    """Get the current document URL being processed"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT current_document_url FROM user_states WHERE citizen_contact = ?',
+        (citizen_contact,)
+    )
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else None
+
+def save_feedback_with_document(citizen_contact, ref_id, rating, comment, center_number, document_url, document_data=None):
+    """Save feedback with document information to the database"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'INSERT INTO feedback (ref_id, citizen_contact, rating, comment, center_number, document_url, document_data) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        (ref_id, citizen_contact, rating, comment, center_number, document_url, document_data)
+    )
     conn.commit()
     conn.close()
 
@@ -137,6 +287,13 @@ def get_current_rating(citizen_contact):
     result = cursor.fetchone()
     conn.close()
     return result[0] if result else None
+
+def clear_user_states():
+    """Remove all entries from user_states table"""
+    with sqlite3.connect('feedback.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM user_states')
+        conn.commit()
 
 def save_feedback(citizen_contact, ref_id, rating, comment):
     """Save feedback to the database"""

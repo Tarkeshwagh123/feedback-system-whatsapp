@@ -7,14 +7,22 @@ from admin_dashboard import admin_bp
 app = Flask(__name__)
 app.register_blueprint(admin_bp, url_prefix='/admin')
 
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Endpoint to receive WhatsApp messages via Twilio"""
     incoming_msg = request.values.get('Body', '').strip()
     sender = request.values.get('From', '')
     
+    # Check for media attachments
+    num_media = int(request.values.get('NumMedia', 0))
+    media_url = None
+    
+    if num_media > 0:
+        media_url = request.values.get('MediaUrl0')
+    
     # Process the incoming message
-    response = process_whatsapp_message(sender, incoming_msg)
+    response = process_whatsapp_message(sender, incoming_msg, media_url)
     
     return str(response)
 
