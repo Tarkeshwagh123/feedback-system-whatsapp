@@ -3,6 +3,7 @@ import database
 from whatsapp_bot import process_whatsapp_message
 from alert_system import check_for_low_ratings
 from admin_dashboard import admin_bp
+from flask import Flask, request, jsonify, render_template, send_file
 
 app = Flask(__name__)
 app.register_blueprint(admin_bp, url_prefix='/admin')
@@ -25,6 +26,23 @@ def webhook():
     response = process_whatsapp_message(sender, incoming_msg, media_url)
     
     return str(response)
+
+
+@app.route('/qr', methods=['GET'])
+def whatsapp_qr():
+    """Generate and serve a QR code to start WhatsApp conversation"""
+    from whatsapp_bot import generate_whatsapp_qr_code
+    
+    # Get optional message parameter from query string
+    message = request.args.get('message', 'feedback')
+    
+    # Generate QR code with specified message
+    qr_path = generate_whatsapp_qr_code(message)
+    
+    if qr_path:
+        return send_file(qr_path, mimetype='image/png')
+    else:
+        return "Failed to generate QR code", 500
 
 @app.route('/service-center', methods=['GET', 'POST'])
 def service_center():

@@ -7,5 +7,6 @@ TWILIO_PHONE_NUMBER = '+14155238886'
 ALERT_RECIPIENTS = [
     '+1234567890',  # Service Center number
     '+917710817591',   # Alert System number
-    '+918655401176'
+    '+918655401176',
+    '+917798080674'
 ]

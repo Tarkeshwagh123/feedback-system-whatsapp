@@ -62,6 +62,7 @@ def init_db():
         current_comment TEXT,
         current_center_number TEXT,
         current_document_url TEXT,
+        language_preference TEXT DEFAULT "english",
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
@@ -135,6 +136,46 @@ def get_current_comment(citizen_contact):
     result = cursor.fetchone()
     conn.close()
     return result[0] if result else None
+
+def add_language_preference_column():
+    """Add language preference column to user_states table"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('ALTER TABLE user_states ADD COLUMN language_preference TEXT DEFAULT "english"')
+        print("Added language_preference column")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e):
+            print("language_preference column already exists")
+        else:
+            print(f"Error adding language_preference column: {e}")
+    
+    conn.commit()
+    conn.close()
+    
+def set_language_preference(citizen_contact, language):
+    """Set the user's language preference"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'UPDATE user_states SET language_preference = ? WHERE citizen_contact = ?',
+        (language, citizen_contact)
+    )
+    conn.commit()
+    conn.close()
+
+def get_language_preference(citizen_contact):
+    """Get the user's language preference"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT language_preference FROM user_states WHERE citizen_contact = ?',
+        (citizen_contact,)
+    )
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result and result[0] else "english"
 
 def set_current_center_number(citizen_contact, center_number):
     """Set the current center number being processed"""

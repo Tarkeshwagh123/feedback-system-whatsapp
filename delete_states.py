@@ -5,6 +5,11 @@ import sqlite3
 #     cursor.execute("DELETE FROM user_states WHERE state = 'AWAITING_DOCUMENT'")
 #     print(f"Deleted {cursor.rowcount} rows")
 #     conn.commit()
+
+import database
+
+# Add language preference column
+database.add_language_preference_column()
     
 # with sqlite3.connect('D:/projects/feedback.db') as conn:
 #     cursor = conn.cursor()
@@ -30,11 +35,11 @@ import sqlite3
 #     print(f"Deleted {cursor.rowcount} rows")
 #     conn.commit()
     
-with sqlite3.connect('D:/projects/feedback.db') as conn:
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM user_states WHERE state = 'AWAITING_CENTER'")
-    print(f"Deleted {cursor.rowcount} rows")
-    conn.commit()
+# with sqlite3.connect('D:/projects/feedback.db') as conn:
+#     cursor = conn.cursor()
+#     cursor.execute("DELETE FROM user_states WHERE state = 'AWAITING_CENTER'")
+#     print(f"Deleted {cursor.rowcount} rows")
+#     conn.commit()
 
 # with sqlite3.connect('D:/projects/feedback.db') as conn:
 #     cursor = conn.cursor()

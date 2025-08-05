@@ -26,6 +26,27 @@ def populate_multilingual_messages():
         {
             "english": "Thank you for your feedback! Your reference ID is: ",
             "marathi": "आपल्या फीडबॅकसाठी धन्यवाद! आपला संदर्भ ID आहे: "
+        },
+        # Add these to your messages list
+        {
+            "english": "Welcome! Please select your language:",
+            "marathi": "स्वागत! कृपया आपली भाषा निवडा:"
+        },
+        {
+            "english": "1. English\n2. मराठी (Marathi)",
+            "marathi": "1. English\n2. मराठी (Marathi)"
+        },
+        {
+            "english": "Language set to English. Send 'feedback' to start the feedback process.",
+            "marathi": "भाषा इंग्रजी वर सेट केली आहे. फीडबॅक प्रक्रिया सुरू करण्यासाठी 'feedback' पाठवा."
+        },
+        {
+            "english": "Language set to Marathi. Send 'फीडबॅक' to start the feedback process.",
+            "marathi": "भाषा मराठी वर सेट केली आहे. फीडबॅक प्रक्रिया सुरू करण्यासाठी 'फीडबॅक' पाठवा."
+        },
+        {
+            "english": "Invalid selection. Please send 1 for English or 2 for Marathi (मराठी)",
+            "marathi": "अवैध निवड. कृपया इंग्रजीसाठी 1 किंवा मराठीसाठी 2 पाठवा"
         }
     ]
     

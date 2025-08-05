@@ -10,6 +10,7 @@ from io import BytesIO
 import tempfile
 from PIL import Image
 import os
+import qrcode
 import uuid
 # Import necessary libraries for document processing
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoImageProcessor, AutoModelForVision2Seq
@@ -78,6 +79,50 @@ def extract_text_from_image(image_path):
 def get_image_description(image_path):
     """Get a description of the image (fallback version)"""
     return "Image description not available - using OCR text only"
+
+
+def generate_whatsapp_qr_code(message="feedback", filename="whatsapp_qr.png"):
+    """
+    Generate a QR code that opens WhatsApp with a pre-filled message
+    
+    Args:
+        message: The message to pre-fill (default: "feedback")
+        filename: Where to save the QR code image
+        
+    Returns:
+        Path to the generated QR code file
+    """
+    try:
+        # Clean phone number (remove "+" prefix required for wa.me format)
+        clean_phone = TWILIO_PHONE_NUMBER.replace('+', '')
+        
+        # Create WhatsApp URL (wa.me format)
+        whatsapp_url = f"https://wa.me/{clean_phone}?text={message}"
+        
+        print(f"Generating QR code for WhatsApp URL: {whatsapp_url}")
+        
+        # Generate QR code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(whatsapp_url)
+        qr.make(fit=True)
+        
+        # Create an image from the QR Code
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Save the image
+        img.save(filename)
+        
+        print(f"QR code saved to {filename}")
+        return os.path.abspath(filename)
+    
+    except Exception as e:
+        print(f"Error generating WhatsApp QR code: {e}")
+        return None
 
 def process_with_rag(text_content, image_description):
     """Process the document content using RAG framework without rule-based extraction"""
@@ -208,8 +253,7 @@ def send_whatsapp_message(to, message):
 
 def process_whatsapp_message(sender, message, media_url=None):
     """
-    Process incoming WhatsApp messages with document upload functionality
-    for feedback collection
+    Process incoming WhatsApp messages with language selection at the beginning of every conversation
     """
     print(f"Processing message from {sender}: '{message}'")
     response = MessagingResponse()
@@ -217,16 +261,37 @@ def process_whatsapp_message(sender, message, media_url=None):
     # Extract phone number from sender
     phone_number = sender.replace('whatsapp:', '')
     
-    # Determine language preference
-    is_marathi = detect_marathi(message)
-    language = "marathi" if is_marathi else "english"
-    
     # Get user's current state (or None if this is a new conversation)
     user_state = database.get_user_state(phone_number)
     
-    # Handle based on current state
+    # Always ask for language at the start of a conversation
     if not user_state or user_state == 'IDLE':
-        # New conversation
+        # Set state to language selection at the beginning of every conversation
+        database.set_user_state(phone_number, 'AWAITING_LANGUAGE')
+        response.message("Welcome! Please select your language:\n1. English\n2. मराठी (Marathi)")
+    
+    elif user_state == 'AWAITING_LANGUAGE':
+        # Process language selection
+        if message.strip() == '1' or message.lower().strip() == 'english':
+            language = "english"
+            database.set_language_preference(phone_number, language)
+            database.set_user_state(phone_number, 'ASK_FOR_FEEDBACK')
+            response.message("Language set to English. Send 'feedback' to start the feedback process.")
+        
+        elif message.strip() == '2' or message.lower().strip() == 'marathi' or message.strip() == 'मराठी':
+            language = "marathi"
+            database.set_language_preference(phone_number, language)
+            database.set_user_state(phone_number, 'ASK_FOR_FEEDBACK')
+            response.message("भाषा मराठी वर सेट केली आहे. फीडबॅक प्रक्रिया सुरू करण्यासाठी 'फीडबॅक' पाठवा.")
+        
+        else:
+            response.message("Invalid selection. Please send 1 for English or 2 for Marathi (मराठी)")
+    
+    elif user_state == 'ASK_FOR_FEEDBACK':
+        # Get language preference for the user
+        language = database.get_language_preference(phone_number)
+        
+        # Check if user wants to provide feedback
         if 'feedback' in message.lower() or message.strip() == 'फीडबॅक':
             # User wants to provide feedback, ask for document
             database.set_user_state(phone_number, 'AWAITING_DOCUMENT')
@@ -247,19 +312,15 @@ def process_whatsapp_message(sender, message, media_url=None):
             )
             response.message(response_text)
     
+    # The rest of your existing states remain the same
     elif user_state == 'AWAITING_DOCUMENT':
+        language = database.get_language_preference(phone_number)
+        # Process as before
         if media_url:
-            # Document received, process it
             document_url = media_url
             database.set_current_document_url(phone_number, document_url)
-            
-            # Process document to extract data
             document_data = process_document(document_url)
-            
-            # Log the extracted data
             print(f"Document data extracted: {document_data}")
-            
-            # Ask for center number - no automatic extraction now
             database.set_user_state(phone_number, 'AWAITING_CENTER')
             
             response_text = get_message_in_language(
@@ -268,14 +329,15 @@ def process_whatsapp_message(sender, message, media_url=None):
             )
             response.message(response_text)
         else:
-            # Remind user to upload document
             response_text = get_message_in_language(
                 "Please upload a document or receipt. Take a photo and send it now.",
                 language
             )
             response.message(response_text)
     
+    # The rest of your state handlers continue as before
     elif user_state == 'AWAITING_CENTER':
+        language = database.get_language_preference(phone_number)
         # Save center number
         center_number = message.strip()
         database.set_current_center_number(phone_number, center_number)
@@ -290,6 +352,7 @@ def process_whatsapp_message(sender, message, media_url=None):
         response.message(response_text)
     
     elif user_state == 'AWAITING_RATING':
+        language = database.get_language_preference(phone_number)
         try:
             rating = int(message.strip())
             if 1 <= rating <= 5:
@@ -315,6 +378,7 @@ def process_whatsapp_message(sender, message, media_url=None):
             response.message(response_text)
     
     elif user_state == 'AWAITING_COMMENT':
+        language = database.get_language_preference(phone_number)
         # Save comment
         comment = message
         database.set_current_comment(phone_number, comment)
@@ -339,7 +403,7 @@ def process_whatsapp_message(sender, message, media_url=None):
             center_number, document_url, document_data
         )
         
-        # Reset user state
+        # Reset user state to IDLE so next message will ask for language again
         database.set_user_state(phone_number, 'IDLE')
         
         # Send completion message with reference ID
@@ -353,11 +417,9 @@ def process_whatsapp_message(sender, message, media_url=None):
         # Unknown state, reset to IDLE
         database.set_user_state(phone_number, 'IDLE')
         
-        response_text = get_message_in_language(
-            "Welcome! Send 'feedback' to start the feedback process.",
-            language
-        )
-        response.message(response_text)
+        # This will trigger language selection on next message
+        response.message("Welcome! Please send any message to begin.")
+    
     print(f"Sending response: {str(response)}")
     return response
 
