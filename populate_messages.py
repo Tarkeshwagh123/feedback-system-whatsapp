@@ -5,19 +5,19 @@ def populate_multilingual_messages():
     messages = [
         {
             "english": "Welcome! Send 'feedback' to start the feedback process.",
-            "marathi": "स्वागत! फीडबॅक प्रक्रिया सुरू करण्यासाठी 'फीडबॅक' पाठवा."
+            "marathi": "स्वागत! अभिप्राय  प्रक्रिया सुरू करण्यासाठी 'फीडबॅक' पाठवा."
         },
         {
-            "english": "Please upload a document or receipt for your feedback. Take a photo and send it now.",
-            "marathi": "कृपया आपल्या फीडबॅकसाठी दस्तऐवज किंवा पावती अपलोड करा. आता फोटो काढा आणि पाठवा."
+            "english": "Please upload a document or receipt for your feedback or Take a photo and send it now.",
+            "marathi": "कृपया आपल्या अभिप्राय साठी दस्तऐवज किंवा पावती अपलोड करा किंवा फोटो काढा आणि पाठवा."
         },
         {
-            "english": "Document received! Please enter the service center number.",
-            "marathi": "दस्तऐवज प्राप्त झाला! कृपया सेवा केंद्र क्रमांक प्रविष्ट करा."
+            "english": "Document received! Please enter the service center owner name or CSC ID or MOL ID.",
+            "marathi": "दस्तऐवज प्राप्त झाला! कृपया सेवा केंद्र चालकाचे नाव किवा CSC ID किवा MOL ID प्रविष्ट करा."
         },
         {
-            "english": "Thank you! Please rate your experience from 1 (poor) to 5 (excellent).",
-            "marathi": "धन्यवाद! कृपया आपला अनुभव 1 (वाईट) ते 5 (उत्कृष्ट) या प्रमाणे रेट करा."
+            "english":  "Thank you! Please rate your experience: 1️⃣ Excellent 2️⃣ Good 3️⃣ Average 4️⃣ Poor 5️⃣ Very Poor",
+            "marathi": "धन्यवाद! आपली सेवा समाधानकारक होती का? 1️⃣ अत्यंत समाधानकारक 2️⃣ समाधानकारक 3️⃣ असमाधानकारक 4️⃣ अत्यंत असमाधानकारक 5️⃣ खूप वाईट",
         },
         {
             "english": "Thank you for your rating. Please provide any additional comments.",
@@ -25,7 +25,15 @@ def populate_multilingual_messages():
         },
         {
             "english": "Thank you for your feedback! Your reference ID is: ",
-            "marathi": "आपल्या फीडबॅकसाठी धन्यवाद! आपला संदर्भ ID आहे: "
+            "marathi": "आपल्या अभिप्राय साठी धन्यवाद! आपला संदर्भ ID आहे: "
+        },
+        {
+            "english": "Thank you for your rating. Please provide any additional comments.",
+            "marathi": "आपल्या रेटिंगसाठी धन्यवाद. कृपया अतिरिक्त टिप्पणी द्या."
+        },
+        {
+            "english": "Thank you! We have received your feedback! Your reference ID is: ",
+            "marathi": "धन्यवाद! आपण दिलेला अभिप्राय आम्हाला मिळाला! आपला संदर्भ ID आहे: "
         },
         # Add these to your messages list
         {
@@ -37,16 +45,29 @@ def populate_multilingual_messages():
             "marathi": "1. English\n2. मराठी (Marathi)"
         },
         {
-            "english": "Language set to English. Send 'feedback' to start the feedback process.",
-            "marathi": "भाषा इंग्रजी वर सेट केली आहे. फीडबॅक प्रक्रिया सुरू करण्यासाठी 'feedback' पाठवा."
-        },
-        {
-            "english": "Language set to Marathi. Send 'फीडबॅक' to start the feedback process.",
-            "marathi": "भाषा मराठी वर सेट केली आहे. फीडबॅक प्रक्रिया सुरू करण्यासाठी 'फीडबॅक' पाठवा."
-        },
-        {
             "english": "Invalid selection. Please send 1 for English or 2 for Marathi (मराठी)",
             "marathi": "अवैध निवड. कृपया इंग्रजीसाठी 1 किंवा मराठीसाठी 2 पाठवा"
+        },
+        # Add these messages to your existing messages list:
+        {
+            "english": "What would you like to do?",
+            "marathi": "आपण काय करू इच्छिता?"
+        },
+        {
+            "english": "1. Provide feedback\n2. Get services information",
+            "marathi": "1. अभिप्राय द्या\n2. सेवा माहिती मिळवा"
+        },
+        {
+            "english": "Invalid selection. Please enter 1 for feedback or 2 for services information.",
+            "marathi": "अवैध निवड. कृपया अभिप्रायासाठी 1 किंवा सेवा माहितीसाठी 2 प्रविष्ट करा."
+        },
+        {
+            "english": "We're sending you our services information document. Please wait a moment...",
+            "marathi": "आम्ही तुम्हाला आमच्या सेवांची माहिती पाठवत आहोत. कृपया थोडा वेळ थांबा..."
+        },
+        {
+            "english": "Here is information about our services.",
+            "marathi": "येथे आमच्या सेवांबद्दल माहिती आहे."
         }
     ]
     

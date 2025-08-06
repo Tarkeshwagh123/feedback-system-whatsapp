@@ -1,7 +1,7 @@
 from twilio.rest import Client
 
-ACCOUNT_SID = 'ACb89f994be55774a5fb3ffa814a87c333'
-AUTH_TOKEN = 'f0e5b804b4fb37bce09ad2d438b07534'  # Replace with your actual auth token
+ACCOUNT_SID = 'AC1c7991ceb3c0b24a3d5cd0ebe8f4bdd7'
+AUTH_TOKEN = 'c4e514d51ed28e35b67f927a180f34f6'  # Replace with your actual auth token
 WHATSAPP_NUMBER = '+14155238886'
 
 client = Client(ACCOUNT_SID, AUTH_TOKEN)

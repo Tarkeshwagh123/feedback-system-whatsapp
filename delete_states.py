@@ -6,14 +6,32 @@ import sqlite3
 #     print(f"Deleted {cursor.rowcount} rows")
 #     conn.commit()
 
+# with sqlite3.connect('D:/projects/feedback.db') as conn:
+#     cursor = conn.cursor()
+#     cursor.execute("DELETE FROM user_states WHERE state = 'AWAITING_RATING'")
+#     print(f"Deleted {cursor.rowcount} rows")
+#     conn.commit()
+
+# with sqlite3.connect('D:/projects/feedback.db') as conn:
+#     cursor = conn.cursor()
+#     cursor.execute("DELETE FROM user_states WHERE state = 'AWAITING_LANGUAGE'")
+#     print(f"Deleted {cursor.rowcount} rows")
+#     conn.commit()
+
 import database
 
 # Add language preference column
-database.add_language_preference_column()
+#database.add_language_preference_column()
     
+with sqlite3.connect('D:/projects/feedback.db') as conn:
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM user_states WHERE state = 'SERVICE_SELECTION'")
+    print(f"Deleted {cursor.rowcount} rows")
+    conn.commit()
+
 # with sqlite3.connect('D:/projects/feedback.db') as conn:
 #     cursor = conn.cursor()
-#     cursor.execute("DELETE FROM user_states WHERE state = 'IDLE'")
+#     cursor.execute("DELETE FROM multilingual_messages")
 #     print(f"Deleted {cursor.rowcount} rows")
 #     conn.commit()
     

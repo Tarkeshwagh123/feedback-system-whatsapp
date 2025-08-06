@@ -366,3 +366,52 @@ def get_all_feedback(days=None):
     result = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return result
+
+
+def update_last_interaction(citizen_contact):
+    """Update the timestamp of the last interaction"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    current_time = datetime.now().isoformat()
+    cursor.execute(
+        'UPDATE user_states SET updated_at = ? WHERE citizen_contact = ?',
+        (current_time, citizen_contact)
+    )
+    conn.commit()
+    conn.close()
+
+def cleanup_stale_conversations(timeout_minutes=30):
+    """Reset state for conversations that have been inactive for a while"""
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    
+    # Get the current time
+    current_time = datetime.now()
+    
+    # Find conversations that haven't been updated in timeout_minutes
+    cursor.execute('SELECT citizen_contact, updated_at FROM user_states')
+    users = cursor.fetchall()
+    
+    reset_count = 0
+    for contact, updated_at_str in users:
+        if not updated_at_str:
+            continue
+            
+        # Convert string to datetime
+        try:
+            updated_at = datetime.fromisoformat(updated_at_str.replace('Z', '+00:00'))
+            timeout = current_time - updated_at
+            
+            # If timeout exceeds limit, reset to IDLE
+            if timeout.total_seconds() > (timeout_minutes * 60):
+                cursor.execute(
+                    'UPDATE user_states SET state = ? WHERE citizen_contact = ?',
+                    ('IDLE', contact)
+                )
+                reset_count += 1
+        except Exception as e:
+            print(f"Error processing timestamp for {contact}: {e}")
+    
+    conn.commit()
+    conn.close()
+    return reset_count

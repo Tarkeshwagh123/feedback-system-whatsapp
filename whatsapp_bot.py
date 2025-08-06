@@ -209,6 +209,28 @@ def process_document(document_url):
     except Exception as e:
         print(f"Error processing document: {e}")
         return json.dumps({"error": f"Document processing failed: {str(e)}"})
+    
+def send_whatsapp_document(to, document_path, caption=None):
+    """Send a document via WhatsApp using Twilio"""
+    try:
+        with open(document_path, 'rb') as file:
+            media_url = f"file://{os.path.abspath(document_path)}"
+            
+            message_params = {
+                "from_": f"whatsapp:{TWILIO_PHONE_NUMBER}",
+                "to": f"whatsapp:{to}",
+                "media_url": [media_url]
+            }
+            
+            if caption:
+                message_params["body"] = caption
+                
+            message = client.messages.create(**message_params)
+            print(f"Document sent with SID: {message.sid}")
+            return message.sid
+    except Exception as e:
+        print(f"Error sending WhatsApp document: {e}")
+        return None
 
 def detect_marathi(text):
     """
@@ -253,10 +275,12 @@ def send_whatsapp_message(to, message):
 
 def process_whatsapp_message(sender, message, media_url=None):
     """
-    Process incoming WhatsApp messages with language selection at the beginning of every conversation
+    Process incoming WhatsApp messages with language selection and service options
+    Returns a tuple of (response, next_state) to allow state updates only after message delivery
     """
     print(f"Processing message from {sender}: '{message}'")
     response = MessagingResponse()
+    next_state = None
     
     # Extract phone number from sender
     phone_number = sender.replace('whatsapp:', '')
@@ -264,164 +288,219 @@ def process_whatsapp_message(sender, message, media_url=None):
     # Get user's current state (or None if this is a new conversation)
     user_state = database.get_user_state(phone_number)
     
-    # Always ask for language at the start of a conversation
-    if not user_state or user_state == 'IDLE':
-        # Set state to language selection at the beginning of every conversation
-        database.set_user_state(phone_number, 'AWAITING_LANGUAGE')
-        response.message("Welcome! Please select your language:\n1. English\n2. मराठी (Marathi)")
+    # Special command to reset state
+    if message.lower() in ["reset", "restart", "पुनः प्रारंभ"]:
+        response.message("Your conversation has been reset. Send any message to start again.")
+        next_state = 'IDLE'
+        return response, next_state
     
-    elif user_state == 'AWAITING_LANGUAGE':
-        # Process language selection
-        if message.strip() == '1' or message.lower().strip() == 'english':
-            language = "english"
-            database.set_language_preference(phone_number, language)
-            database.set_user_state(phone_number, 'ASK_FOR_FEEDBACK')
-            response.message("Language set to English. Send 'feedback' to start the feedback process.")
+    try:
+        # Always ask for language at the start of a conversation
+        if not user_state or user_state == 'IDLE':
+            # Set state to language selection at the beginning of every conversation
+            response.message(get_message_in_language("Welcome! Please select your language:\n1. English\n2. मराठी (Marathi)", "english"))
+            next_state = 'AWAITING_LANGUAGE'
         
-        elif message.strip() == '2' or message.lower().strip() == 'marathi' or message.strip() == 'मराठी':
-            language = "marathi"
-            database.set_language_preference(phone_number, language)
-            database.set_user_state(phone_number, 'ASK_FOR_FEEDBACK')
-            response.message("भाषा मराठी वर सेट केली आहे. फीडबॅक प्रक्रिया सुरू करण्यासाठी 'फीडबॅक' पाठवा.")
-        
-        else:
-            response.message("Invalid selection. Please send 1 for English or 2 for Marathi (मराठी)")
-    
-    elif user_state == 'ASK_FOR_FEEDBACK':
-        # Get language preference for the user
-        language = database.get_language_preference(phone_number)
-        
-        # Check if user wants to provide feedback
-        if 'feedback' in message.lower() or message.strip() == 'फीडबॅक':
-            # User wants to provide feedback, ask for document
-            database.set_user_state(phone_number, 'AWAITING_DOCUMENT')
-            
-            response_text = get_message_in_language(
-                "Please upload a document or receipt for your feedback. Take a photo and send it now.", 
-                language
-            )
-            response.message(response_text)
-        else:
-            # Standard message handling for non-feedback messages
-            sender_name = "WhatsApp User"
-            database.save_simple_message(sender_name, phone_number, message)
-            
-            response_text = get_message_in_language(
-                "Welcome! Send 'feedback' to start the feedback process.", 
-                language
-            )
-            response.message(response_text)
-    
-    # The rest of your existing states remain the same
-    elif user_state == 'AWAITING_DOCUMENT':
-        language = database.get_language_preference(phone_number)
-        # Process as before
-        if media_url:
-            document_url = media_url
-            database.set_current_document_url(phone_number, document_url)
-            document_data = process_document(document_url)
-            print(f"Document data extracted: {document_data}")
-            database.set_user_state(phone_number, 'AWAITING_CENTER')
-            
-            response_text = get_message_in_language(
-                "Document received! Please enter the service center number.",
-                language
-            )
-            response.message(response_text)
-        else:
-            response_text = get_message_in_language(
-                "Please upload a document or receipt. Take a photo and send it now.",
-                language
-            )
-            response.message(response_text)
-    
-    # The rest of your state handlers continue as before
-    elif user_state == 'AWAITING_CENTER':
-        language = database.get_language_preference(phone_number)
-        # Save center number
-        center_number = message.strip()
-        database.set_current_center_number(phone_number, center_number)
-        
-        # Ask for rating
-        database.set_user_state(phone_number, 'AWAITING_RATING')
-        
-        response_text = get_message_in_language(
-            "Thank you! Please rate your experience from 1 (poor) to 5 (excellent).",
-            language
-        )
-        response.message(response_text)
-    
-    elif user_state == 'AWAITING_RATING':
-        language = database.get_language_preference(phone_number)
-        try:
-            rating = int(message.strip())
-            if 1 <= rating <= 5:
-                database.set_current_rating(phone_number, rating)
-                database.set_user_state(phone_number, 'AWAITING_COMMENT')
+        elif user_state == 'AWAITING_LANGUAGE':
+            # Process language selection
+            if message.strip() == '1' or message.lower().strip() == 'english':
+                language = "english"
+                database.set_language_preference(phone_number, language)
                 
+                # Ask what service they want
                 response_text = get_message_in_language(
-                    "Thank you for your rating. Please provide any additional comments.",
+                    "What would you like to do?\n1. Provide feedback\n2. Get services information",
                     language
                 )
                 response.message(response_text)
+                next_state = 'SERVICE_SELECTION'
+            
+            elif message.strip() == '2' or message.lower().strip() == 'marathi' or message.strip() == 'मराठी':
+                language = "marathi"
+                database.set_language_preference(phone_number, language)
+                
+                # Ask what service they want in Marathi
+                response_text = get_message_in_language(
+                    "आपण काय करू इच्छिता?\n1. अभिप्राय द्या\n2. सेवा माहिती मिळवा",
+                    language
+                )
+                response.message(response_text)
+                next_state = 'SERVICE_SELECTION'
+            
             else:
                 response_text = get_message_in_language(
-                    "Please provide a rating between 1 and 5.",
+                    "Invalid selection. Please send 1 for English or 2 for Marathi (मराठी)",
+                    "english" # Default to English for invalid language selection
+                )
+                response.message(response_text)
+                # Don't change state, keep waiting for language selection
+            
+        elif user_state == 'SERVICE_SELECTION':
+            # Get language preference for the user
+            language = database.get_language_preference(phone_number)
+            
+            # Process service selection
+            if message.strip() == '1' or message.lower().strip() == 'feedback' or message.strip() == 'फीडबॅक' or message.strip() == 'अभिप्राय':
+                # User wants to provide feedback, ask for document
+                response_text = get_message_in_language(
+                    "Please upload a document or receipt for your feedback or Take a photo and send it now.", 
                     language
                 )
                 response.message(response_text)
-        except ValueError:
+                next_state = 'AWAITING_DOCUMENT'
+            
+            elif message.strip() == '2' or message.lower().strip() in ['services', 'information', 'services information', 'सेवा', 'माहिती', 'सेवा माहिती']:
+                # User wants services information - send PDF
+                pdf_path = "d:\\projects\\example.pdf"
+                
+                response_text = get_message_in_language(
+                    "We're sending you our services information document. Please wait a moment...",
+                    language
+                )
+                response.message(response_text)
+                
+                # Prepare caption in appropriate language
+                caption = get_message_in_language(
+                    "Here is information about our services.",
+                    language
+                )
+                
+                # After responding to the webhook, send the document separately
+                # We'll handle this with a separate function call from the webhook
+                # to avoid issues with state changes before message delivery
+                # Don't change state immediately - do it in the webhook
+                return response, ('SEND_DOCUMENT', phone_number, pdf_path, caption, 'IDLE')
+            
+            else:
+                response_text = get_message_in_language(
+                    "Invalid selection. Please enter 1 for feedback or 2 for services information.",
+                    language
+                )
+                response.message(response_text)
+                # Don't change state, keep waiting for service selection
+        
+        # The rest of your existing states remain the same
+        elif user_state == 'AWAITING_DOCUMENT':
+            language = database.get_language_preference(phone_number)
+            # Process as before
+            if media_url:
+                document_url = media_url
+                database.set_current_document_url(phone_number, document_url)
+                document_data = process_document(document_url)
+                print(f"Document data extracted: {document_data}")
+                
+                response_text = get_message_in_language(
+                    "Document received! Please enter the service center owner name or CSC ID or MOL ID.",
+                    language
+                )
+                response.message(response_text)
+                next_state = 'AWAITING_CENTER'
+            else:
+                response_text = get_message_in_language(
+                    "Please upload a document or receipt for your feedback or Take a photo and send it now.",
+                    language
+                )
+                response.message(response_text)
+                # Keep the same state
+        
+        elif user_state == 'AWAITING_CENTER':
+            language = database.get_language_preference(phone_number)
+            # Save center number
+            center_number = message.strip()
+            database.set_current_center_number(phone_number, center_number)
+            
+            # Ask for rating
             response_text = get_message_in_language(
-                "Please enter a number between 1 and 5.",
+                "Thank you! Please rate your experience: 1️⃣ Excellent 2️⃣ Good 3️⃣ Average 4️⃣ Poor 5️⃣ Very Poor",
                 language
             )
             response.message(response_text)
-    
-    elif user_state == 'AWAITING_COMMENT':
-        language = database.get_language_preference(phone_number)
-        # Save comment
-        comment = message
-        database.set_current_comment(phone_number, comment)
+            next_state = 'AWAITING_RATING'
         
-        # Generate a reference ID
-        ref_id = str(uuid.uuid4())[:8]
+        elif user_state == 'AWAITING_RATING':
+            language = database.get_language_preference(phone_number)
+            try:
+                rating = int(message.strip())
+                if 1 <= rating <= 5:
+                    database.set_current_rating(phone_number, rating)
+                    
+                    response_text = get_message_in_language(
+                        "Thank you for your rating. Please provide any additional comments.",
+                        language
+                    )
+                    response.message(response_text)
+                    next_state = 'AWAITING_COMMENT'
+                else:
+                    response_text = get_message_in_language(
+                        "Thank you! Please rate your experience: 1️⃣ Excellent 2️⃣ Good 3️⃣ Average 4️⃣ Poor 5️⃣ Very Poor",
+                        language
+                    )
+                    response.message(response_text)
+                    # Keep the same state
+            except ValueError:
+                response_text = get_message_in_language(
+                    "Thank you! Please rate your experience: 1️⃣ Excellent 2️⃣ Good 3️⃣ Average 4️⃣ Poor 5️⃣ Very Poor",
+                    language
+                )
+                response.message(response_text)
+                # Keep the same state
         
-        # Save all collected data
-        document_url = database.get_current_document_url(phone_number)
-        center_number = database.get_current_center_number(phone_number)
-        rating = database.get_current_rating(phone_number)
+        elif user_state == 'AWAITING_COMMENT':
+            language = database.get_language_preference(phone_number)
+            # Save comment
+            comment = message
+            database.set_current_comment(phone_number, comment)
+            
+            # Generate a reference ID
+            ref_id = str(uuid.uuid4())[:8]
+            
+            # Save all collected data
+            document_url = database.get_current_document_url(phone_number)
+            center_number = database.get_current_center_number(phone_number)
+            rating = database.get_current_rating(phone_number)
+            
+            # Get processed document data
+            document_data = process_document(document_url)
+            
+            # Add reference ID to database
+            database.add_reference_id(ref_id, phone_number)
+            
+            # Save complete feedback with document data
+            database.save_feedback_with_document(
+                phone_number, ref_id, rating, comment,
+                center_number, document_url, document_data
+            )
+            
+            # Send completion message with reference ID
+            response_text = get_message_in_language(
+                "Thank you! We have received your feedback! Your reference ID is: ",
+                language
+            )
+            response.message(f"{response_text}{ref_id}")
+            
+            # Check for low ratings and send alerts if needed
+            if rating <= 2:
+                check_for_low_ratings()
+            
+            next_state = 'IDLE'  # Reset state for next conversation
         
-        # Get processed document data
-        document_data = process_document(document_url)
+        else:
+            # Unknown state, reset to IDLE
+            response_text = get_message_in_language(
+                "Welcome! Please send any message to begin.",
+                "english" # Default to English since we don't know language preference
+            )
+            response.message(response_text)
+            next_state = 'IDLE'
         
-        # Add reference ID to database
-        database.add_reference_id(ref_id, phone_number)
-        
-        # Save complete feedback with document data
-        database.save_feedback_with_document(
-            phone_number, ref_id, rating, comment,
-            center_number, document_url, document_data
-        )
-        
-        # Reset user state to IDLE so next message will ask for language again
-        database.set_user_state(phone_number, 'IDLE')
-        
-        # Send completion message with reference ID
-        response_text = get_message_in_language(
-            "Thank you for your feedback! Your reference ID is: ",
-            language
-        )
-        response.message(f"{response_text}{ref_id}")
-    
-    else:
-        # Unknown state, reset to IDLE
-        database.set_user_state(phone_number, 'IDLE')
-        
-        # This will trigger language selection on next message
-        response.message("Welcome! Please send any message to begin.")
+    except Exception as e:
+        print(f"Error processing message: {e}")
+        # Send a generic error message and reset state
+        response.message("Sorry, we encountered an error. Please try again.")
+        next_state = 'IDLE'
     
     print(f"Sending response: {str(response)}")
-    return response
+    return response, next_state
 
 # Initialize AI models when the module loads
 init_ai_models()
