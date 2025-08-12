@@ -23,31 +23,30 @@ def webhook():
     if num_media > 0:
         media_url = request.values.get('MediaUrl0')
 
+    # Process the message to get TwiML response and next state
     response, next_state = process_whatsapp_message(sender, incoming_msg, media_url)
-
-    # Only update state if Twilio message was sent successfully
-    message_sent = True
-    try:
-        # Try sending the response using Twilio REST API
-        from whatsapp_bot import send_whatsapp_message
-        # If response is TwiML, extract text
-        resp_text = str(response)
-        # You may need to parse TwiML to get the actual message text
-        # For simplicity, let's assume it's plain text
-        sid = send_whatsapp_message(phone_number, resp_text)
-        if not sid:
-            message_sent = False
-    except Exception as e:
-        print(f"Twilio send error: {e}")
-        message_sent = False
-
-    if message_sent and next_state:
+    
+    # Handle special case for document sending
+    if isinstance(next_state, tuple) and next_state[0] == 'SEND_DOCUMENT':
+        _, recipient, doc_path, caption, after_state = next_state
+        
+        # We'll handle document sending asynchronously to avoid blocking
+        import threading
+        def send_doc():
+            from whatsapp_bot import send_whatsapp_document
+            send_whatsapp_document(recipient, doc_path, caption)
+            database.set_user_state(phone_number, after_state)
+            
+        # Start document sending in background
+        threading.Thread(target=send_doc).start()
+    
+    # For normal responses, update state based on TwiML response
+    elif next_state:
         database.set_user_state(phone_number, next_state)
         database.update_last_interaction(phone_number)
         print(f"Updated state for {phone_number} to {next_state}")
-    else:
-        print("Message not sent, state not updated.")
 
+    # Return only the TwiML response
     return str(response)
 
 @app.route('/qr', methods=['GET'])

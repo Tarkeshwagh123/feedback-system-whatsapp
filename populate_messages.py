@@ -16,8 +16,8 @@ def populate_multilingual_messages():
             "marathi": "दस्तऐवज प्राप्त झाला! कृपया सेवा केंद्र चालकाचे नाव किवा CSC ID किवा MOL ID प्रविष्ट करा."
         },
         {
-            "english":  "Thank you! Please rate your experience: 1️⃣ Excellent 2️⃣ Good 3️⃣ Average 4️⃣ Poor 5️⃣ Very Poor",
-            "marathi": "धन्यवाद! आपली सेवा समाधानकारक होती का? 1️⃣ अत्यंत समाधानकारक 2️⃣ समाधानकारक 3️⃣ असमाधानकारक 4️⃣ अत्यंत असमाधानकारक 5️⃣ खूप वाईट",
+            "english":  "Thank you! Please rate your experience:\n\n 1️⃣ Very Poor\n 2️⃣ Poor\n 3️⃣ Average\n 4️⃣ Good\n 5️⃣ Excellent",
+            "marathi": "धन्यवाद! आपली सेवा समाधानकारक होती का?\n\n 1️⃣ खूप वाईट\n 2️⃣ अत्यंत असमाधानकारक\n  3️⃣ असमाधानकारक\n 4️⃣ समाधानकारक\n  5️⃣ अत्यंत समाधानकारक",
         },
         {
             "english": "Thank you for your rating. Please provide any additional comments.",

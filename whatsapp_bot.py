@@ -411,7 +411,7 @@ def process_whatsapp_message(sender, message, media_url=None):
             
             # Ask for rating
             response_text = get_message_in_language(
-                "Thank you! Please rate your experience: 1️⃣ Excellent 2️⃣ Good 3️⃣ Average 4️⃣ Poor 5️⃣ Very Poor",
+                "Thank you! Please rate your experience:\n\n 1️⃣ Very Poor\n 2️⃣ Poor\n 3️⃣ Average\n 4️⃣ Good\n 5️⃣ Excellent",
                 language
             )
             response.message(response_text)
