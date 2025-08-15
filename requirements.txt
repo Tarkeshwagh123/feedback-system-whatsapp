@@ -21,3 +21,8 @@ plotly==5.14.1
 altair==4.2.2
 streamlit-aggrid==0.3.4
 streamlit-option-menu==0.3.2
+transformers==4.30.2
+boto3==1.28.38
+botocore==1.31.38
+aws-cdk-lib==2.88.0
+huggingface_hub==0.16.4

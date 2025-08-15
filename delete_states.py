@@ -25,10 +25,16 @@ import database
     
 with sqlite3.connect('D:/projects/feedback.db') as conn:
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM user_states WHERE state = 'SERVICE_SELECTION'")
-    print(f"Deleted {cursor.rowcount} rows")
+    # cursor.execute("ALTER TABLE feedback ADD COLUMN sentiment TEXT")
+    # cursor.execute("ALTER TABLE feedback ADD COLUMN intent TEXT")
+    # cursor.execute("ALTER TABLE feedback ADD COLUMN toxicity_score REAL")
+    cursor.execute('ALTER TABLE feedback ADD COLUMN language TEXT')
+    cursor.execute('ALTER TABLE feedback ADD COLUMN entities TEXT')
+    #cursor.execute("ALTER TABLE feedback ADD COLUMN embedding TEXT")
+    print("Added new columns to feedback table")
+    #print(f"Deleted {cursor.rowcount} rows")
     conn.commit()
-
+    
 # with sqlite3.connect('D:/projects/feedback.db') as conn:
 #     cursor = conn.cursor()
 #     cursor.execute("DELETE FROM multilingual_messages")

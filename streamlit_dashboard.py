@@ -112,8 +112,8 @@ def render_dashboard():
     with st.sidebar:
         selected = option_menu(
             "Navigation",
-            ["Overview", "Detailed Analytics", "Feedback Management", "Critical Issues", "Settings"],
-            icons=["house", "graph-up", "chat-left-text", "exclamation-triangle", "gear"],
+            ["Overview", "Detailed Analytics", "Feedback Management", "Critical Issues", "AI Insights", "Settings"],
+            icons=["house", "graph-up", "chat-left-text", "exclamation-triangle", "robot", "gear"],
             menu_icon="list",
             default_index=0,
         )
@@ -186,11 +186,16 @@ def render_dashboard():
         with col1:
             st.subheader("Rating Distribution")
             rating_counts = df['rating'].value_counts().sort_index()
+            df_ratings = pd.DataFrame({
+                'Rating': rating_counts.index,
+                'Count': rating_counts.values
+            })
             fig = px.bar(
-                x=rating_counts.index,
-                y=rating_counts.values,
-                labels={'x': 'Rating', 'y': 'Count'},
-                color=rating_counts.index,
+                df_ratings,
+                x='Rating',
+                y='Count',
+                labels={'Rating': 'Rating', 'Count': 'Count'},
+                color='Rating',
                 color_continuous_scale='Viridis'
             )
             fig.update_layout(
@@ -314,21 +319,25 @@ def render_dashboard():
         
         # Display results in a table
         st.write(f"Showing {len(filtered_df)} results")
-        
+        display_df = filtered_df[['ref_id', 'citizen_contact', 'center_number', 'rating', 'comment', 'created_at']].copy()
+        display_df.columns = ["Reference ID", "Contact", "Service Center", "Rating", "Comment", "Date & Time"]
         # Enhanced table with sorting
         st.dataframe(
-            filtered_df[['ref_id', 'citizen_contact', 'center_number', 'rating', 'comment', 'created_at']],
-            use_container_width=True,
-            column_config={
-                "ref_id": "Reference ID",
-                "citizen_contact": "Contact",
-                "center_number": "Service Center",
-                "rating": "Rating",
-                "comment": "Comment",
-                "created_at": "Date & Time"
-            },
-            hide_index=True
+            display_df,
+            use_container_width=True
         )
+        
+        if 'sentiment' in df.columns:
+            with st.expander("Sentiment Snapshot"):
+                sent_counts = df['sentiment'].dropna().apply(lambda x: x.split(':')[0]).value_counts()
+                st.bar_chart(sent_counts)
+        if 'toxicity_score' in df.columns:
+            with st.expander("Toxicity Distribution"):
+                tox = df['toxicity_score'].dropna()
+                if not tox.empty:
+                    st.write(f"Avg toxicity: {tox.mean():.3f}")
+                    fig = px.histogram(tox)
+                    st.plotly_chart(fig)
         
         # Export options
         col1, col2 = st.columns([1, 3])
@@ -382,6 +391,271 @@ def render_dashboard():
                         st.button("Send Follow-up", key=f"followup_{row['id']}", disabled=True)
         else:
             st.success("No critical issues found for the selected time period.")
+    elif selected == "AI Insights":
+        st.markdown('<p class="title-text">AI Insights Dashboard</p>', unsafe_allow_html=True)
+        
+        # Sentiment Analysis Section
+        st.subheader("Sentiment Analysis")
+        
+        if 'sentiment' in df.columns:
+            # Extract sentiment labels and scores
+            df['sentiment_label'] = df['sentiment'].apply(
+                lambda x: x.split(':')[0] if isinstance(x, str) and ':' in x else 'Unknown'
+            )
+            
+            # Count sentiments
+            sentiment_counts = df['sentiment_label'].value_counts()
+            
+            col1, col2 = st.columns([2, 3])
+            
+            with col1:
+                # Sentiment distribution pie chart
+                fig = px.pie(
+                    values=sentiment_counts.values,
+                    names=sentiment_counts.index,
+                    title='Sentiment Distribution',
+                    color_discrete_sequence=px.colors.qualitative.Set3
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+            with col2:
+                # Sentiment trend over time
+                df['date'] = pd.to_datetime(df['created_at']).dt.date
+                sentiment_trend = df.groupby(['date', 'sentiment_label']).size().reset_index(name='count')
+                
+                fig = px.line(
+                    sentiment_trend,
+                    x='date',
+                    y='count',
+                    color='sentiment_label',
+                    title='Sentiment Trend Over Time'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Sentiment analysis data not available. Please process feedback with AI services.")
+        
+        # Intent Classification Section
+        st.subheader("User Intent Classification")
+
+        if 'intent' in df.columns:
+            # Count intents
+            intent_counts = df['intent'].value_counts()
+            
+            # Create a dataframe for the intent counts
+            df_intents = pd.DataFrame({
+                'Intent': intent_counts.index,
+                'Count': intent_counts.values
+            })
+
+            # Then use the dataframe in the chart
+            fig = px.bar(
+                df_intents,
+                x='Intent',
+                y='Count',
+                title='Distribution of User Intents',
+                labels={'Intent': 'Intent', 'Count': 'Count'},
+                color='Intent'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Intent classification data not available.")
+        
+        # Language Distribution
+        st.subheader("Language Distribution")
+        
+        if 'language' in df.columns:
+            language_counts = df['language'].value_counts()
+            
+            fig = px.pie(
+                values=language_counts.values,
+                names=language_counts.index,
+                title='Language Distribution',
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Language detection data not available.")
+        
+        # Toxicity Analysis
+        st.subheader("Content Toxicity Analysis")
+        
+        if 'toxicity_score' in df.columns:
+            # Remove None values and convert to float
+            toxicity_df = df[df['toxicity_score'].notna()].copy()
+            toxicity_df['toxicity_score'] = toxicity_df['toxicity_score'].astype(float)
+            
+            # Define toxicity levels
+            toxicity_df['toxicity_level'] = pd.cut(
+                toxicity_df['toxicity_score'],
+                bins=[0, 0.3, 0.7, 1.0],
+                labels=['Low', 'Medium', 'High']
+            )
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Toxicity distribution
+                toxicity_levels = toxicity_df['toxicity_level'].value_counts()
+                
+                fig = px.pie(
+                    values=toxicity_levels.values,
+                    names=toxicity_levels.index,
+                    title='Toxicity Level Distribution',
+                    color_discrete_sequence=['green', 'orange', 'red']
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+            with col2:
+                # Toxicity histogram
+                fig = px.histogram(
+                    toxicity_df,
+                    x='toxicity_score',
+                    nbins=10,
+                    title='Toxicity Score Distribution',
+                    color_discrete_sequence=['blue']
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Show high toxicity feedback
+            if len(toxicity_df[toxicity_df['toxicity_level'] == 'High']) > 0:
+                st.subheader("Potentially Problematic Feedback")
+                toxic_df = toxicity_df[toxicity_df['toxicity_level'] == 'High'].sort_values('toxicity_score', ascending=False)
+                
+                for _, row in toxic_df.iterrows():
+                    with st.expander(f"⚠️ High toxicity ({row['toxicity_score']:.2f}): {row['ref_id']}"):
+                        st.write(f"**Comment:** {row['comment']}")
+                        st.write(f"**Rating:** {row['rating']}/5")
+                        st.write(f"**Center:** {row['center_number']}")
+        else:
+            st.info("Toxicity analysis data not available.")
+            
+        # Semantic Search (if embeddings are available)
+        st.subheader("Semantic Search")
+        
+        if 'embedding' in df.columns and any(df['embedding'].notna()):
+            search_query = st.text_input("Search feedback semantically (concepts, not just keywords):")
+            
+            if search_query:
+                # Import required libraries for semantic search
+                from sentence_transformers import SentenceTransformer
+                import numpy as np
+                
+                @st.cache_resource
+                def load_embedding_model():
+                    return SentenceTransformer('all-MiniLM-L6-v2')
+                
+                model = load_embedding_model()
+                
+                # Generate embedding for search query
+                query_embedding = model.encode(search_query)
+                
+                # Filter dataframe to only rows with embeddings
+                df_with_embeddings = df[df['embedding'].notna()].copy()
+                
+                # Calculate similarity scores
+                def calc_similarity(embedding_str):
+                    if not embedding_str:
+                        return 0
+                    try:
+                        emb = np.array([float(x) for x in embedding_str.split(',')])
+                        return np.dot(query_embedding, emb) / (np.linalg.norm(query_embedding) * np.linalg.norm(emb))
+                    except:
+                        return 0
+                
+                df_with_embeddings['similarity'] = df_with_embeddings['embedding'].apply(calc_similarity)
+                
+                # Show top results
+                results = df_with_embeddings.sort_values('similarity', ascending=False).head(5)
+                
+                st.write(f"Top {len(results)} semantically similar results:")
+                
+                for _, row in results.iterrows():
+                    with st.expander(f"Similarity: {row['similarity']:.2f} - {row['comment'][:50]}..."):
+                        st.write(f"**Full comment:** {row['comment']}")
+                        st.write(f"**Rating:** {row['rating']}/5")
+                        st.write(f"**Center:** {row['center_number']}")
+                        st.write(f"**Date:** {row['created_at']}")
+        else:
+            st.info("Semantic search requires embedding data. Process feedback with AI services to enable this feature.")
+        
+        # Entity Extraction Visualization
+        st.subheader("Entity Extraction")
+        
+        if 'entities' in df.columns and any(df['entities'].notna()):
+            # Parse entities JSON strings
+            entities_df = df[df['entities'].notna()].copy()
+            
+            def parse_entities(entities_json):
+                try:
+                    if isinstance(entities_json, str):
+                        return json.loads(entities_json)
+                    return {}
+                except:
+                    return {}
+            
+            entities_df['parsed_entities'] = entities_df['entities'].apply(parse_entities)
+            
+            # Extract specific entities
+            service_centers = []
+            amounts = []
+            dates = []
+            
+            for _, row in entities_df.iterrows():
+                entities = row['parsed_entities']
+                
+                if 'service_center' in entities and entities['service_center']:
+                    service_centers.append(entities['service_center'])
+                    
+                if 'amount' in entities and entities['amount']:
+                    amounts.append(entities['amount'])
+                    
+                if 'date' in entities and entities['date']:
+                    dates.append(entities['date'])
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Service center distribution
+                if service_centers:
+                    service_center_counts = pd.Series(service_centers).value_counts().head(10)
+                    
+                    df_centers = pd.DataFrame({
+                        'Service_Center': service_center_counts.index,
+                        'Count': service_center_counts.values
+                    })
+
+                    fig = px.bar(
+                        df_centers,
+                        x='Service_Center',
+                        y='Count',
+                        title='Top Service Centers Mentioned',
+                        labels={'Service_Center': 'Service Center', 'Count': 'Count'}
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No service center entities extracted.")
+            
+            with col2:
+                # Date distribution
+                if dates:
+                    date_counts = pd.Series(dates).value_counts().head(10)
+                    
+                    df_dates = pd.DataFrame({
+                        'Date': date_counts.index,
+                        'Count': date_counts.values
+                    })
+                    fig = px.bar(
+                        df_dates,
+                        x='Date',
+                        y='Count',
+                        title='Date Mentions in Feedback',
+                        labels={'Date': 'Date', 'Count': 'Count'}
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No date entities extracted.")
+        else:
+            st.info("Entity extraction data not available.")
     
     # Settings
     elif selected == "Settings":
@@ -408,10 +682,45 @@ def render_dashboard():
         if st.button("Run Database Cleanup"):
             count = database.cleanup_stale_conversations()
             st.success(f"Reset {count} stale conversations")
+        
+        if 'embedding' in df.columns and st.checkbox("Enable semantic search"):
+            q = st.text_input("Semantic search query")
+            if q:
+                import numpy as np
+                from sentence_transformers import SentenceTransformer
+                model = SentenceTransformer("all-MiniLM-L6-v2")
+                qv = model.encode([q])[0]
+                def parse_vec(v):
+                    return np.array([float(x) for x in v.split(',')])
+                df_local = df.dropna(subset=['embedding']).copy()
+                df_local['sim'] = df_local['embedding'].apply(lambda v: float(np.dot(parse_vec(v), qv) /
+                                                (np.linalg.norm(parse_vec(v))*np.linalg.norm(qv)+1e-9)))
+                st.dataframe(df_local.sort_values('sim', ascending=False)[['ref_id','comment','rating','sim']].head(15))
 
 # Main app execution
 def main():
-    if authenticate():
+    # Move authentication check outside the render_dashboard call
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    
+    if not st.session_state.authenticated:
+        # Show only login form when not authenticated
+        st.markdown('<p class="title-text">Admin Dashboard Login</p>', unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1,2,1])
+        with col2:
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            login_button = st.button("Login")
+            
+            if login_button:
+                if username == "admin" and password == "admin123":
+                    st.session_state.authenticated = True
+                    st.success("Login successful!")
+                    st.experimental_rerun()  # Try this first
+                else:
+                    st.error("Invalid credentials")
+    else:
+        # Only render dashboard when authenticated
         render_dashboard()
 
 if __name__ == "__main__":

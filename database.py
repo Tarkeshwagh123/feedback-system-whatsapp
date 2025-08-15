@@ -379,6 +379,21 @@ def update_last_interaction(citizen_contact):
     )
     conn.commit()
     conn.close()
+    
+def save_feedback_with_document(citizen_contact, ref_id, rating, comment, center_number, document_url, document_data=None,
+                                sentiment=None, intent=None, toxicity=None, language=None, entities=None, embedding=None):
+    conn = sqlite3.connect('feedback.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        '''INSERT INTO feedback 
+        (ref_id, citizen_contact, rating, comment, center_number, document_url, document_data,
+        sentiment, intent, toxicity, language, entities, embedding)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        (ref_id, citizen_contact, rating, comment, center_number, document_url, document_data,
+        sentiment, intent, toxicity, language, entities, embedding)
+    )
+    conn.commit()
+    conn.close()
 
 def cleanup_stale_conversations(timeout_minutes=30):
     """Reset state for conversations that have been inactive for a while"""

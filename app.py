@@ -5,6 +5,7 @@ from alert_system import check_for_low_ratings
 from admin_dashboard import admin_bp
 import os
 from datetime import datetime
+from ai_services import init_ai_services
 
 app = Flask(__name__)
 app.register_blueprint(admin_bp, url_prefix='/admin')
@@ -89,3 +90,4 @@ def cleanup_stale_conversations():
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5000)
+    init_ai_services()

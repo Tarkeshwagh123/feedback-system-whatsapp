@@ -12,6 +12,8 @@ from PIL import Image
 import os
 import qrcode
 import uuid
+from transformers import pipeline
+import math
 # Import necessary libraries for document processing
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoImageProcessor, AutoModelForVision2Seq
 from langchain.vectorstores import FAISS
@@ -20,6 +22,13 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 import pytesseract
 import re
+from ai_services import run_ai_processing, detect_language, translate_text, detect_duplicate_feedback, generate_summary
+
+
+_ai_loaded = False
+_sentiment_clf = None
+_toxic_clf = None
+_intent_labels = ["feedback", "service_info", "other"]
 
 # Initialize Twilio client
 client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
@@ -67,6 +76,55 @@ def init_ai_models():
     except Exception as e:
         print(f"Error initializing AI models: {e}")
         return False
+    
+    
+def init_light_ai():
+    global _ai_loaded, _sentiment_clf, _toxic_clf
+    try:
+        if _ai_loaded:
+            return
+        _sentiment_clf = pipeline("sentiment-analysis")  # distilbert-based
+        _toxic_clf = pipeline("text-classification", model="unitary/toxic-bert")
+        _ai_loaded = True
+        print("Light AI pipelines loaded")
+    except Exception as e:
+        print(f"AI load failure (non-fatal): {e}")
+
+def classify_intent(text: str):
+    t = text.lower()
+    if any(k in t for k in ["feedback", "फीडबॅक", "अभिप्राय"]):
+        return "feedback"
+    if any(k in t for k in ["service", "सेवा", "information", "माहिती"]):
+        return "service_info"
+    return "other"
+
+def calc_embedding(text: str):
+    try:
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+        vec = model.encode([text])[0]
+        return ",".join([f"{x:.5f}" for x in vec])
+    except Exception as e:
+        print(f"Embedding error: {e}")
+        return None
+
+def run_ai_augment(comment_text: str):
+    init_light_ai()
+    sentiment = None
+    toxicity = None
+    intent = classify_intent(comment_text)
+    try:
+        if _sentiment_clf:
+            sres = _sentiment_clf(comment_text[:512])[0]
+            sentiment = f"{sres['label']}:{sres['score']:.3f}"
+        if _toxic_clf:
+            tres = _toxic_clf(comment_text[:512])[0]
+            toxicity = tres['score']
+    except Exception as e:
+        print(f"AI inference error: {e}")
+    emb = calc_embedding(comment_text[:512])
+    return sentiment, intent, toxicity, emb
+
 
 def extract_text_from_image(image_path):
     """Extract text from an image using OCR"""
@@ -433,7 +491,7 @@ def process_whatsapp_message(sender, message, media_url=None):
                 else:
                     response_text = get_message_in_language(
                         "Thank you! Please rate your experience: 1️⃣ Excellent 2️⃣ Good 3️⃣ Average 4️⃣ Poor 5️⃣ Very Poor",
-                        language
+                        laentnguage
                     )
                     response.message(response_text)
                     # Keep the same state
@@ -465,10 +523,29 @@ def process_whatsapp_message(sender, message, media_url=None):
             # Add reference ID to database
             database.add_reference_id(ref_id, phone_number)
             
-            # Save complete feedback with document data
+            # Run AI processing on the feedback
+            try:
+                document_text = json.loads(document_data).get('full_text', '') if document_data else ''
+                ai_results = run_ai_processing(comment, document_text)
+                
+                # Check for duplicate feedback
+                is_duplicate = detect_duplicate_feedback(comment)
+                if is_duplicate:
+                    print(f"Potential duplicate feedback detected from {phone_number}")
+            except Exception as e:
+                print(f"Error in AI processing: {e}")
+                ai_results = {}
+            
+            # Save complete feedback with document data and AI analysis
             database.save_feedback_with_document(
                 phone_number, ref_id, rating, comment,
-                center_number, document_url, document_data
+                center_number, document_url, document_data,
+                sentiment=ai_results.get('sentiment'),
+                intent=ai_results.get('intent'),
+                toxicity=ai_results.get('toxicity'),
+                language=ai_results.get('language'),
+                entities=ai_results.get('entities'),
+                embedding=ai_results.get('embedding')
             )
             
             # Send completion message with reference ID
@@ -480,7 +557,7 @@ def process_whatsapp_message(sender, message, media_url=None):
             
             # Check for low ratings and send alerts if needed
             if rating <= 2:
-                check_for_low_ratings()
+                check_for_low_ratings(phone_number, ref_id, rating)
             
             next_state = 'IDLE'  # Reset state for next conversation
         
